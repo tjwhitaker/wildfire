@@ -1,0 +1,17 @@
+{
+  "model": "lr",
+  "observations": {
+    "x": 7,
+    "y": 5,
+    "month": "mar",
+    "day": "fri",
+    "ffmc": 86.2,
+    "dmc": 26.2,
+    "dc": 94.3,
+    "isi": 5.1,
+    "temp": 8.2,
+    "rh": 51.6,
+    "wind": 7,
+    "rain": 0
+  }
+}
