@@ -1,2 +1,3 @@
 api/templates/* linguist-vendored
 notebooks/* linguist-vendored
+posts/* linguist-vendored
