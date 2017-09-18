@@ -1,0 +1,353 @@
+---
+title: Wildfire Part 2 - Getting The Data
+tags: Preparation, Regression, Tutorial
+---
+
+Welcome to part 2 of our Forest Fires project! First off, we're going to create our workspace. So let's start by initiating a new repo and pushing it to git. You can find the repo [here](https://github.com/new-baseline/wildfire). Feel free to clone or fork it if you like, or just follow along and create your own repo.
+
+The libraries we're going to use for this project are Jupyter, NumPy, Pandas, Matplotlib and Scikit-Learn. There are plenty of tutorials online for how to download these modules, so go read those, download those modules and meet me back here when you're ready.
+
+READMORE
+
+Ready? Great okay now we can download our data from <https://archive.ics.uci.edu/ml/datasets/Forest+Fires> into our repository. I've also included the forestfires.names file which has some meta information about the dataset as well as some citations and references.
+
+Jupyter is an excellent tool for data exploration. It's like a super powerful REPL that will allow us to look through our history, change things if we need to and visualize everything we're doing. So let's go ahead and start jupyter by navigating to our wildfire directory and running.
+
+~~~ bash
+$ jupyter notebook
+~~~
+
+Create a new python3 notebook and name it whatever you want (I named mine wildfire_notebook). Now let's create a function to load our data into our notebook using pandas.
+
+~~~ python
+import pandas as pd
+
+def load_data(path):
+    return pd.read_csv(path)
+~~~
+
+Now let's take a peek at what we have.
+
+~~~ python
+fire_data = load_data('forestfires.csv')
+fire_data.head()
+~~~
+
+You should see a table that looks like this.
+
+<table>
+  <thead>
+    <tr>
+      <th></th>
+      <th>X</th>
+      <th>Y</th>
+      <th>month</th>
+      <th>day</th>
+      <th>FFMC</th>
+      <th>DMC</th>
+      <th>DC</th>
+      <th>ISI</th>
+      <th>temp</th>
+      <th>RH</th>
+      <th>wind</th>
+      <th>rain</th>
+      <th>area</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>7</td>
+      <td>5</td>
+      <td>mar</td>
+      <td>fri</td>
+      <td>86.2</td>
+      <td>26.2</td>
+      <td>94.3</td>
+      <td>5.1</td>
+      <td>8.2</td>
+      <td>51</td>
+      <td>6.7</td>
+      <td>0.0</td>
+      <td>0.0</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>7</td>
+      <td>4</td>
+      <td>oct</td>
+      <td>tue</td>
+      <td>90.6</td>
+      <td>35.4</td>
+      <td>669.1</td>
+      <td>6.7</td>
+      <td>18.0</td>
+      <td>33</td>
+      <td>0.9</td>
+      <td>0.0</td>
+      <td>0.0</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>7</td>
+      <td>4</td>
+      <td>oct</td>
+      <td>sat</td>
+      <td>90.6</td>
+      <td>43.7</td>
+      <td>686.9</td>
+      <td>6.7</td>
+      <td>14.6</td>
+      <td>33</td>
+      <td>1.3</td>
+      <td>0.0</td>
+      <td>0.0</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>8</td>
+      <td>6</td>
+      <td>mar</td>
+      <td>fri</td>
+      <td>91.7</td>
+      <td>33.3</td>
+      <td>77.5</td>
+      <td>9.0</td>
+      <td>8.3</td>
+      <td>97</td>
+      <td>4.0</td>
+      <td>0.2</td>
+      <td>0.0</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>8</td>
+      <td>6</td>
+      <td>mar</td>
+      <td>sun</td>
+      <td>89.3</td>
+      <td>51.3</td>
+      <td>102.2</td>
+      <td>9.6</td>
+      <td>11.4</td>
+      <td>99</td>
+      <td>1.8</td>
+      <td>0.0</td>
+      <td>0.0</td>
+    </tr>
+  </tbody>
+</table>
+
+It's not obvious what all of our columns are. What does FFMC, DMC, DC, ISI and RH mean? Luckily we have that forestfires.names file, which gives us some additional info about those columns.
+
+~~~
+7. Attribute information:
+
+   For more information, read [Cortez and Morais, 2007].
+
+   1. X - x-axis spatial coordinate within the Montesinho park map: 1 to 9
+   2. Y - y-axis spatial coordinate within the Montesinho park map: 2 to 9
+   3. month - month of the year: "jan" to "dec" 
+   4. day - day of the week: "mon" to "sun"
+   5. FFMC - FFMC index from the FWI system: 18.7 to 96.20
+   6. DMC - DMC index from the FWI system: 1.1 to 291.3 
+   7. DC - DC index from the FWI system: 7.9 to 860.6 
+   8. ISI - ISI index from the FWI system: 0.0 to 56.10
+   9. temp - temperature in Celsius degrees: 2.2 to 33.30
+   10. RH - relative humidity in %: 15.0 to 100
+   11. wind - wind speed in km/h: 0.40 to 9.40 
+   12. rain - outside rain in mm/m2 : 0.0 to 6.4 
+   13. area - the burned area of the forest (in ha): 0.00 to 1090.84 
+   (this output variable is very skewed towards 0.0, thus it may make
+   sense to model with the logarithm transform). 
+~~~
+
+Unfortunately this doesn't help us too much and we'll have to go searching google for what the FWI system is. Turns out FWI stands for Fire Weather Index and the acronyms stand for...
+
+~~~
+FFMC - Fine Fuel Moisture Code
+DMC - Duff Moisture Code
+DC - Drought Code
+ISI - Initial Spread Index
+~~~
+
+Now let's try getting a little bit of info about our data.
+
+~~~ python
+fire_data.info()
+~~~
+
+Will output something like this
+
+~~~
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 517 entries, 0 to 516
+Data columns (total 13 columns):
+X        517 non-null int64
+Y        517 non-null int64
+month    517 non-null object
+day      517 non-null object
+FFMC     517 non-null float64
+DMC      517 non-null float64
+DC       517 non-null float64
+ISI      517 non-null float64
+temp     517 non-null float64
+RH       517 non-null int64
+wind     517 non-null float64
+rain     517 non-null float64
+area     517 non-null float64
+dtypes: float64(8), int64(3), object(2)
+memory usage: 52.6+ KB
+~~~
+
+We could've guessed our types looking at the table we got from the .head() function. The important thing here to look at is the RangeIndex. A lot of times, there will be missing values for certain rows in datasets. Luckily all of our data appears to be here, so we won't need to deal with missing values. Two common solutions for dealing with missing values include dropping those rows from the data, or replacing those values with the median or something else that makes sense given the data.
+
+Our last introduction function is describe(). It provides a bunch of basic statistics on our numerical values.
+
+~~~ python
+fire_data.describe()
+~~~
+
+<table>
+  <thead>
+    <tr>
+      <th></th>
+      <th>X</th>
+      <th>Y</th>
+      <th>FFMC</th>
+      <th>DMC</th>
+      <th>DC</th>
+      <th>ISI</th>
+      <th>temp</th>
+      <th>RH</th>
+      <th>wind</th>
+      <th>rain</th>
+      <th>area</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>count</th>
+      <td>517.000000</td>
+      <td>517.000000</td>
+      <td>517.000000</td>
+      <td>517.000000</td>
+      <td>517.000000</td>
+      <td>517.000000</td>
+      <td>517.000000</td>
+      <td>517.000000</td>
+      <td>517.000000</td>
+      <td>517.000000</td>
+      <td>517.000000</td>
+    </tr>
+    <tr>
+      <th>mean</th>
+      <td>4.669246</td>
+      <td>4.299807</td>
+      <td>90.644681</td>
+      <td>110.872340</td>
+      <td>547.940039</td>
+      <td>9.021663</td>
+      <td>18.889168</td>
+      <td>44.288201</td>
+      <td>4.017602</td>
+      <td>0.021663</td>
+      <td>12.847292</td>
+    </tr>
+    <tr>
+      <th>std</th>
+      <td>2.313778</td>
+      <td>1.229900</td>
+      <td>5.520111</td>
+      <td>64.046482</td>
+      <td>248.066192</td>
+      <td>4.559477</td>
+      <td>5.806625</td>
+      <td>16.317469</td>
+      <td>1.791653</td>
+      <td>0.295959</td>
+      <td>63.655818</td>
+    </tr>
+    <tr>
+      <th>min</th>
+      <td>1.000000</td>
+      <td>2.000000</td>
+      <td>18.700000</td>
+      <td>1.100000</td>
+      <td>7.900000</td>
+      <td>0.000000</td>
+      <td>2.200000</td>
+      <td>15.000000</td>
+      <td>0.400000</td>
+      <td>0.000000</td>
+      <td>0.000000</td>
+    </tr>
+    <tr>
+      <th>25%</th>
+      <td>3.000000</td>
+      <td>4.000000</td>
+      <td>90.200000</td>
+      <td>68.600000</td>
+      <td>437.700000</td>
+      <td>6.500000</td>
+      <td>15.500000</td>
+      <td>33.000000</td>
+      <td>2.700000</td>
+      <td>0.000000</td>
+      <td>0.000000</td>
+    </tr>
+    <tr>
+      <th>50%</th>
+      <td>4.000000</td>
+      <td>4.000000</td>
+      <td>91.600000</td>
+      <td>108.300000</td>
+      <td>664.200000</td>
+      <td>8.400000</td>
+      <td>19.300000</td>
+      <td>42.000000</td>
+      <td>4.000000</td>
+      <td>0.000000</td>
+      <td>0.520000</td>
+    </tr>
+    <tr>
+      <th>75%</th>
+      <td>7.000000</td>
+      <td>5.000000</td>
+      <td>92.900000</td>
+      <td>142.400000</td>
+      <td>713.900000</td>
+      <td>10.800000</td>
+      <td>22.800000</td>
+      <td>53.000000</td>
+      <td>4.900000</td>
+      <td>0.000000</td>
+      <td>6.570000</td>
+    </tr>
+    <tr>
+      <th>max</th>
+      <td>9.000000</td>
+      <td>9.000000</td>
+      <td>96.200000</td>
+      <td>291.300000</td>
+      <td>860.600000</td>
+      <td>56.100000</td>
+      <td>33.300000</td>
+      <td>100.000000</td>
+      <td>9.400000</td>
+      <td>6.400000</td>
+      <td>1090.840000</td>
+    </tr>
+  </tbody>
+</table>
+
+That about wraps it up for our data gathering phase. We'll explore our data in depth in the next blog post and see what kind of information we can glean. Stay tuned!
+
+[Code Repository](https://github.com/new-baseline/wildfire) \\
+[Part 1: The Big Picture](/wildfire-part-1-the-big-picture.html) \\
+[Part 2: Getting The Data](/wildfire-part-2-getting-the-data.html) \\
+[Part 3: Exploring The Data](/wildfire-part-3-exploring-the-data.html) \\
+[Part 4: Preparing The Data](/wildfire-part-4-preparing-the-data.html) \\
+[Part 5: Building Our Models](/wildfire-part-5-building-our-models.html) \\
+[Part 6: Fine Tuning Our Models](/wildfire-part-6-fine-tuning-our-models.html) \\
+[Part 7: Launching Our System](/wildfire-part-7-launching-our-system.html)

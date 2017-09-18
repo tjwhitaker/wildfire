@@ -1,0 +1,63 @@
+---
+title: Wildfire Part 1 - The Big Picture
+tags: Overview, Regression, Tutorial
+---
+
+Let's go ahead and get started on our first real world machine learning project! This will be an example/tutorial project where we will go through and build a machine learning system from end to end. The dataset we're going to use is coming to us from [UC Irvine's machine learning repository](https://archive.ics.uci.edu/ml/datasets). It takes a lot of work and effort to create and produce these datasets, so before we get started, I want to take a moment and say thanks to UC Irvine and all the other establishments who are releasing open access data. It's these groups and datasets that are making the machine learning community as awesome as it is.
+
+READMORE
+
+Framing the Problem
+-------------------
+
+We have just been hired on to Portugal's forest fire research division. We are tasked with building a model to predict the area of land burned from a forest fire within the Montesinho Natural Park. Our model should learn to predict the area given data points like location, time of year, and some weather info.
+
+What exactly is the business objective for this project?
+
+We can reason that building this model is probably not the end goal for the fire research division. Portugal is a big place and data for just one natural park is not going to be accurate enough to apply to all of Portugal. So our first question to ask is how the fire research division is expecting to use and benefit from this model. Are they using this data to get an idea of how to better respond to fires? How many resources will need to be allocated to fight a fire? Perhaps this data will be compared with another team's work on urban fires? Are we trying to classify fires based on their potential risk and/or danger? 
+
+This is important as we may approach the problem with different assumptions and select models or performance measures that aren't appropriate. The last thing we want is to spend a couple months building and tweaking a system only to find out that they're looking for something else.
+
+Turns out our model is going to be used and consumed by a team that allocates resources to these natural park areas. They need a number from us (not a category like large, medium, small) as they have other signals that they work with to decide what actions to take. If our model underestimates our target burn area, then we can be screwed as an area could get out of control. If we overestimate our burn area, we will spend more money than we need on containing the fire. It's important that we get an accurate result (and err on the side of caution) in order to best fight these fires.
+
+Our next step is to ask out how this is currently being done. We find out that it's done by a team of people manually. Looking at various weather signals, this team makes a guess at how many firefighters to send. It works okay, but they've found that they often overestimate these fires and waste money by allocating too many resources. They've found that it is costly and time consuming to have a team of people do this task manually.
+
+Designing Our System
+--------------------
+
+Okay, now we have enough information about our problem. Let's start thinking through our solution. First we need to think about our problem and decide on our structure. Is this a supervised, unsupervised or reinforcement learning problem? Is this a classification or regression task? Should we use batch learning or online learning?
+
+We are building a *supervised* learning system, because we have historical data with target values that we're going to train our model on. It is a *regression* task, because we want to predict a target value based on other variable. And lastly, we'll use *batch learning* because fires aren't a streaming source of data that is continuosly occuring. We can train our model with a batch of historical data.
+
+Selecting a Performance Measure
+-------------------------------
+
+Now we need to choose a way to measure the performance of our model. The typical choice for a regression problem is the Root Mean Square Error. It measures how much error our system makes in its predictions with a higher weight for larger errors. The function for RMSE looks like this.
+
+$$
+RMSE(X, h) = {\sqrt {\frac{1} {N}{\sum\limits_{i = 1}^N {(h(x_{i}) - y_{i} } })^{2} } }
+$$
+
+While the RMSE is preferred for most regression problems, sometime you'll run into the Mean Absolute Error. If you're working on a dataset that has a lot of outliers, the MAE may be a better performance measure to use. The formula for MAE looks like this. 
+
+$$
+MAE(X, h) = {\frac{1} {N}{\sum\limits_{i = 1}^N {|{h(x_{i}) - y_{i}}|}}} 
+$$
+
+Both of these functions work to measure the distance between two vectors. Those two vectors being our predictions and target values. Since we haven't dove into our data yet, we can't say for certain whether this task is going to have a lot of outliers or not. We'll start off with RMSE, but we can always try MAE if we find that RMSE isn't working very well.
+
+Checking Our Assumptions
+---------------------
+
+Finally, we'll check in with ourselves about assumptions we've made. We're assuming that we're building a regression system for predicting the total area burned given a location and some weather data. We're assuming that our data's locations and weather readings are real and come from the Montesinho Natural Park. We're assuming that we can build a batch learning system and that we won't need to train our model with streaming continuous data.
+
+I think we feel confident that our assumptions are sane and we've cleared them with our project manager. Now we can get to work.
+
+[Code Repository](https://github.com/new-baseline/wildfire) \\
+[Part 1: The Big Picture](/wildfire-part-1-the-big-picture.html) \\
+[Part 2: Getting The Data](/wildfire-part-2-getting-the-data.html) \\
+[Part 3: Exploring The Data](/wildfire-part-3-exploring-the-data.html) \\
+[Part 4: Preparing The Data](/wildfire-part-4-preparing-the-data.html) \\
+[Part 5: Building Our Models](/wildfire-part-5-building-our-models.html) \\
+[Part 6: Fine Tuning Our Models](/wildfire-part-6-fine-tuning-our-models.html) \\
+[Part 7: Launching Our System](/wildfire-part-7-launching-our-system.html)

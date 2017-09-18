@@ -1,0 +1,141 @@
+---
+title: Wildfire Part 3 - Exploring The Data
+tags: Exploration, Regression, Tutorial
+---
+
+Last week we set up our workspace, downloaded our data and made some introductory looks into our data. To recap, this is the code we wrote. 
+
+~~~ python
+import pandas as pd
+
+def load_data(path):
+    return pd.read_csv(path)
+
+fire_data = load_data('forestfires.csv')
+fire_data.head()
+fire_data.info()
+fire_data.describe()
+~~~
+
+READMORE
+
+Our last post gave us a great introduction to what we're working with. Now we can try to visualize and start making sense of our data. A great way to start is with histograms. A histogram shows the number of instances that have a given value range and plots those in a bar chart. We can do this by calling the hist() function on our data, or calling it on individual fields.
+
+~~~ python
+%matplotlib inline
+import matplotlib.pyplot as plt
+
+plt.style.use('seaborn')
+fire_data.hist(bins=30, figsize=(20,15))
+~~~
+
+The bins parameter changes the number of bars, the figsize changes the size of our plots, and the style function just changes the colors of our graphs. I tend to like seaborn, but you can see all other available styles with `print(plt.style.available)`. Feel free to play around with those parameters. In jupyter, plots are displayed automatically after certain functions, but if you find the graphs aren't rendering, try adding `plt.show()` after the hist() function. Our graphs will look something like this. 
+
+<%= image_tag 'wildfire/histogram.png' %>
+
+Alright now we're getting somewhere! Here are a few things to notice about these histograms.
+
+1. Our area target is massively skewed towards small fires. This will be important as our model will not learn anything about predicting large fires if all of our data is skewed towards small fires. This is an important thing to note with our client. If we need to predict large fires, we won't have any other option other than trying to collect more data. We are going to continue with our small fire predictions though.
+
+2. Rain is also massively skewed towards 0. Apparently fires generally happen when it's not raining.
+
+3. A lot of our features have way different scales.
+
+4. We have a decent spread of data that falls into a bell curve, and data that is both front heavy and tail heavy.
+
+5. Our x and y variables are what's called categorical features. Having a median x and y location of 4 doesn't tell us anything. We'll deal with these features later.
+
+Create a Test Set
+-----------------
+
+Before we move on, it would be a good idea to create a test set. We do this because we want to eliminate any bias we may impart into our model. Turns out humans are very good at pattern recognition, and it's possible that by looking at our test set, we may make choices that would influence our model to perform better on that test set. This could lead to overfitting our data, and this is called a data snooping bias.
+
+Creating a test set is simple. Typically, you split the data into 80/20 split between training and testing. Scikit Learn provides an easy to use function that will split the data for us. We include the random_state parameter as a seed, so that next time we run this function (say we walk away and open this file later) we will have the same data split as we did this time.
+
+~~~ python
+from sklearn.model_selection import train_test_split
+
+train_set, test_set = train_test_split(fire_data, test_size=0.2, random_state=42)
+~~~
+
+From now on we're only going to work on our training data. Let's create a copy of this so we can manipulate it as much as we want, and if we mess up, we can always get back to our original set.
+
+~~~ python
+work_set = train_set.copy()
+~~~
+
+
+Visualize the data
+------------------
+
+Let's look at how our data is laid out over the national park. The location data we were given is all in X and Y locations, thus we will have a lot of data points that overlap with each other. We can visualize these by giving each point a low opacity, thus many points will make for a darker circle. The alpha parameter allows us to change the opacity, while the s parameter changes the size of the data points.
+
+~~~ python
+work_set.plot(kind='scatter', x='X', y='Y', alpha=0.1, s=300)
+~~~
+
+<%= image_tag 'wildfire/scatter_plot.png', class: 'half-graph' %>
+
+It looks like most of our fires take place in the center and bottom left area. Most of the top and very bottom of our map is empty. This is possibly due to terrain that doesn't burn easily. Perhaps it's more wet or the foliage doesn't burn as easily? Perhaps that region is mountainous and has cooler temps?
+
+Let's see how our burn area matches up with our map. We're going to do that by changing the size of our dots based on the size of our burn area. We'll bump up the opacity a bit to make it easier to see the size differences. Our size parameter now is just going to take the burn area and multiply it by a constant to make the circles bigger.
+
+~~~ python
+work_set.plot(kind='scatter', x='X', y='Y', alpha=0.2, s=20*work_set['area'])
+~~~
+
+<%= image_tag 'wildfire/burn_scatter_plot.png', class: 'half-graph' %>
+
+Here we can see that more fires tend to happen in the left central side, but they tend to be smaller. Those on the right side tend to be bigger but more infrequent. Interesting!
+
+Looking for Correlations
+------------------------
+
+With a small dataset, it's easy to compute the standard correlation coefficient for every pair of attributes. We can do this with the corr() function, and then sort and display it with respect to our burn area with sort_values().
+
+~~~ python
+corr_matrix = work_set.corr()
+corr_matrix['area'].sort_values(ascending=False)
+~~~
+
+This outputs the following:
+
+~~~
+area    1.000000
+DMC     0.115296
+temp    0.100529
+X       0.097316
+Y       0.064545
+FFMC    0.048985
+DC      0.048709
+ISI     0.037799
+wind    0.012684
+rain   -0.005113
+RH     -0.057473
+Name: area, dtype: float64
+~~~
+
+The closer the value is to 1, the stronger the positive correlation. The closer to -1, the stronger the negative correlation. It looks like none of our values are super strong in either direction, but the correlations we have make sense (higher temps = more area burned, more rain and humidity = less area burned).
+
+Another way to visualize correlation is with Pandas' scatter_matrix function. This plots every attribute against one another. With 11 attributes however, it's a bit much at 11^2 = 121 graphs. So let's just choose a few interesting attributes and see how they look.
+
+~~~ python
+from pandas.plotting import scatter_matrix
+
+attributes = ['area', 'DMC', 'temp', 'RH']
+scatter_matrix(work_set[attributes], figsize=(15,10))
+~~~
+
+<%= image_tag 'wildfire/scatter_matrix.png' %>
+
+Alright! So now we've explored our data, visualized our data, created a test and training set and looked for correlations. We've gained some valuable insights so far. Next time we're going to manipulate our data and make it suitable for our machine learning models to use. 
+
+
+[Code Repository](https://github.com/new-baseline/wildfire) \\
+[Part 1: The Big Picture](/wildfire-part-1-the-big-picture.html) \\
+[Part 2: Getting The Data](/wildfire-part-2-getting-the-data.html) \\
+[Part 3: Exploring The Data](/wildfire-part-3-exploring-the-data.html) \\
+[Part 4: Preparing The Data](/wildfire-part-4-preparing-the-data.html) \\
+[Part 5: Building Our Models](/wildfire-part-5-building-our-models.html) \\
+[Part 6: Fine Tuning Our Models](/wildfire-part-6-fine-tuning-our-models.html) \\
+[Part 7: Launching Our System](/wildfire-part-7-launching-our-system.html)

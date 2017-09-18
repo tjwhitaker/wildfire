@@ -1,0 +1,229 @@
+---
+title: Wildfire Part 4 - Preparing The Data
+tags: Preparation, Regression, Tutorial
+---
+
+Now that we've explored our data, it's time to start manipulating and preparing it for use with our models. We have some categorical attributes that we will need to encode. We have some scaling we need to do to make sure our ranges are appropriate.
+
+We haven't changed any data in our work set yet. If we had, it would be a good idea to revert back to a clean copy of our original. What we are going to do though, is seperate our predictors from our target (burn area). The drop() function does make a copy, so we're not modifying the work_set here. Setting the axis to 1 tells our drop function to work on columns and not rows.
+
+~~~ python
+fires = work_set.drop('area', axis=1)
+fires_labels = work_set['area'].copy()
+~~~
+
+After this, the next step one would normally take would be to clean our rows that are missing values by either dropping those rows or replacing the data with something that makes sense (like mean/median). Since our data is all there, we can skip this.
+
+READMORE
+
+Handling Text and Categorical Attributes
+----------------------------------------
+
+Most machine learning models prefer to work with numbers over text. We have two text attributes that we need to deal with, month and day. Looking at the head() earlier, we can see that the codes are probably in a 3 character format. Let's double check though. We can see all the possible values our data contains by calling the unique() function on our month and day columns.
+
+~~~ python
+fires['month'].unique()
+~~~
+
+~~~ python
+array(['sep', 'aug', 'feb', 'mar', 'oct', 'apr', 'dec', 'jul', 'jun',
+       'jan', 'may', 'nov'], dtype=object)
+~~~
+
+~~~ python
+fires['day'].unique()
+~~~
+
+~~~ python
+array(['sat', 'mon', 'tue', 'sun', 'fri', 'thu', 'wed'], dtype=object)
+~~~
+
+The values are what we expected. Now we need to encode them, or map them to numbers for our model to use. One possible method is to encode them like so:
+
+~~~
+mon: 1
+tue: 2
+wed: 3
+...
+~~~
+
+There's a problem though. Machine learning algorithms will assume that two nearby values are more similar than distant ones. Is monday:1 and sunday:7 more different than monday:1 and thursday:4? Instead, we're going to use a One Hot encoding technique. It will encode our values in a way that every object is an equal distance from each other.
+
+~~~
+mon: [1,0,0,0,0,0,0]
+tue: [0,1,0,0,0,0,0]
+wed: [0,0,1,0,0,0,0]
+...
+~~~
+
+Here's how we do this.
+
+~~~ python
+from sklearn.preprocessing import LabelBinarizer
+
+month_encoder = LabelBinarizer()
+day_encoder = LabelBinarizer()
+
+months = fires['month']
+days = fires['day']
+
+month_1hot = month_encoder.fit_transform(months)
+day_1hot = day_encoder.fit_transform(days)
+~~~
+
+Feature Scaling
+---------------
+
+Remember when we noticed that our attributes appear to be using vastly different scales? Well now is the time to fix that. This is one of the most important data preparation steps as machine learning models don't really work that well if the scales are off. There are two common ways to scale our features, *min max scaling* and *standardization*.
+
+### Min Max
+
+Min max scaling simply takes each observation and subtracts the min and then divides that by the difference between the max and the min. This will normalize all of our data between 0 and 1. This is a great solution if we want our values in that 0-1 range and/or our data doesn't exhibit a lot of outliers.
+
+$$
+z_{i} = {\frac {x_{i} - min(x)} {max(x) - min(x)}}
+$$
+
+### Standardization
+
+Standardization is a little different. It takes each observation and subtracts the mean and divides by the standard deviation. This means that the range of values are standardized to measure how many standard deviations the value is from its mean. This means that our values will not be in the range of 0-1 which may be a problem for certain models that expect that. In our case though, we are going to use standardization.
+
+$$
+z_{i} = {\frac {x_{i} - \mu} {\sigma}}
+$$
+
+where mu is the mean:
+
+$$
+\mu = \frac{1}{N} \sum_{i=1}^N (x_i)
+$$
+
+and where sigma is the standard deviation:
+
+$$
+\sigma = \sqrt{\frac{1}{N} \sum_{i=1}^N (x_i - \mu)^2}
+$$
+
+Lucky for us sklearn provides us with a convenient way to standardize our data! Keep in mind we only want to scale our numerical data, so we'll drop our categorical data pieces first.
+
+~~~ python
+from sklearn.preprocessing import StandardScaler
+
+scaler = StandardScaler()
+
+numerical_features = fires.drop(['month', 'day'], axis=1)
+scaled_features = scaler.fit_transform(numerical_features)
+~~~
+
+Giving us our new scaled values!
+
+~~~ python
+array([[ -2.88472000e-01,  -1.09485913e+00,   2.80285578e-01, ...,
+         -1.05941934e+00,   1.63124094e-03,  -6.78170911e-02],
+       [ -2.88472000e-01,  -2.66696454e-01,   6.16522396e-02, ...,
+         -3.35214892e-01,  -1.00892252e+00,  -6.78170911e-02],
+       [ -1.16128472e+00,   5.61466218e-01,   2.63467629e-01, ...,
+          1.47588074e-01,   1.63124094e-03,  -6.78170911e-02],
+       ..., 
+       [ -1.16128472e+00,  -1.92302180e+00,   2.63467629e-01, ...,
+          6.90741409e-01,  -5.03645641e-01,  -6.78170911e-02],
+       [ -1.16128472e+00,   5.61466218e-01,   4.48342905e-02, ...,
+          3.88989556e-01,  -1.23349003e+00,  -6.78170911e-02],
+       [ -1.16128472e+00,  -2.66696454e-01,   7.17552255e-01, ...,
+         -2.74864521e-01,   1.63124094e-03,  -6.78170911e-02]])
+~~~
+
+This is a good time to introduce an essential concept into abstracting away our transformation workflow.
+
+
+Transformation Pipelines
+------------------------
+
+When you have many transformation steps that need to be executed in a certain order, we can create a pipeline class to abstract away all of these separate steps. For our project, our pipeline will be pretty small. We haven't had to replace any data, and we haven't really made any big transformations besides standardization and one hot encoding.
+
+We do need to treat our numerical data in a different way than our categorical attributes, so we'll have to create two pipelines to separate our logic. Here's a small example of a numerical pipeline.
+
+~~~ python
+from sklearn.pipeline import Pipeline
+
+numerical_pipeline = Pipeline([
+    ('standardize', StandardScaler())
+])
+~~~
+
+It would be nice to be able to feed our whole pandas dataframe into this pipeline though and not need to split up our data into numpy arrays between numerical/categorical ourselves. We can do this by creating our own transformer class.
+
+~~~ python
+from sklearn.base import BaseEstimator, TransformerMixin
+
+class AttributeSelector(BaseEstimator, TransformerMixin):
+    def __init__(self, attribute_names):
+        self.attribute_names = attribute_names
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        return X[self.attribute_names].values
+~~~
+
+This class will now transform our data by selecting the attributes we pass it, drop the rest, and convert the result into a numpy array.
+
+We're also goin to create a custom transformer for our categorical pipeline. It's a bit tricky as our previous implementation consisted of using two separate label binarizers for each of our attributes. We're going to implement a custom transformer to achieve our goal.
+
+~~~ python
+from sklearn.preprocessing import MultiLabelBinarizer
+
+class CustomBinarizer(BaseEstimator, TransformerMixin):
+    def fit(self, X, y=None,**fit_params):
+        return self
+    def transform(self, X):
+        return MultiLabelBinarizer().fit_transform(X)
+~~~
+
+Now we can add our categorical pipeline and our selector into our pipelines.
+
+~~~ python
+from sklearn.pipeline import Pipeline
+
+numerical_attributes = ['X', 'Y', 'FFMC', 'DMC', 'DC', 'ISI', 'temp', 'RH', 'wind', 'rain']
+categorical_attributes = ['month', 'day']
+
+numerical_pipeline = Pipeline([
+    ('selector', AttributeSelector(numerical_attributes)),
+    ('standardize', StandardScaler()),
+])
+categorical_pipeline = Pipeline([
+    ('selector', AttributeSelector(categorical_attributes)),
+    ('encode', CustomBinarizer()),
+])
+~~~
+
+Lastly, we can create a larger pipeline to run these two pipelines in parallel! We do this with a a function called FeatureUnion().
+
+~~~ python
+from sklearn.pipeline import FeatureUnion
+
+full_pipeline = FeatureUnion(transformer_list= [
+    ('numerical_pipeline', numerical_pipeline),
+    ('categorical_pipeline', categorical_pipeline),
+])
+~~~
+
+And now we can run all our transformations on our set easily!
+
+~~~ python
+fires_transformed = full_pipeline.fit_transform(fires)
+~~~
+
+And there we have it! Totally scaled and prepared data all ready to be plugged in to some machine learning models!
+
+
+[Code Repository](https://github.com/new-baseline/wildfire) \\
+[Part 1: The Big Picture](/wildfire-part-1-the-big-picture.html) \\
+[Part 2: Getting The Data](/wildfire-part-2-getting-the-data.html) \\
+[Part 3: Exploring The Data](/wildfire-part-3-exploring-the-data.html) \\
+[Part 4: Preparing The Data](/wildfire-part-4-preparing-the-data.html) \\
+[Part 5: Building Our Models](/wildfire-part-5-building-our-models.html) \\
+[Part 6: Fine Tuning Our Models](/wildfire-part-6-fine-tuning-our-models.html) \\
+[Part 7: Launching Our System](/wildfire-part-7-launching-our-system.html)

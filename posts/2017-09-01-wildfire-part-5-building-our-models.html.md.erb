@@ -1,0 +1,269 @@
+---
+title: Wildfire Part 5 - Building Our Models
+tags: Regression, Tutorial
+---
+
+Alright! We've got the data and explored it. We created our test and training sets. We've prepared our data and written a transformation pipeline. Now we're ready to select and train some machine learning models!
+
+By going through all of these steps, we've made it really easy on ourselves to build models. Let's start with a simple one.
+
+Linear Regression
+-----------------
+
+~~~ python
+from sklearn.linear_model import LinearRegression
+
+lr_model = LinearRegression()
+lr_model.fit(fires_transformed, fires_labels)
+~~~
+
+Done! We now have a working linear regression model trained on our data! Let's try it out on a few instances from the training set.
+
+~~~ python
+some_data = fires.iloc[:5]
+some_labels = fires_labels.iloc[:5]
+some_data_prepared = full_pipeline.fit_transform(some_data)
+some_predictions = lr_model.predict(some_data_prepared)
+~~~
+
+And then we get an error complaining about the shape of our data not matching. What's going on here? Well, it's an issue with our custom binarizer class. Since our full dataset has a lot of unique values for our month and day attributes [jan, feb, mar, ... nov, dec], it creates a one hot encoding for all of those values. Now if we run that binarizer on only 5 pieces of data, we have only 5 unique point at most, leaving our resulting array of a much smaller shape. So we need to force our binarizer to have all of those extra fields, regardless of how few unique values we pass it. We do that with the classes attribute on MultiLabelBinarizer. Our class will now look like this
+
+~~~ python
+from sklearn.preprocessing import MultiLabelBinarizer
+
+class CustomBinarizer(BaseEstimator, TransformerMixin):
+    def __init__(self, class_labels):
+        self.class_labels = class_labels
+    def fit(self, X, y=None,**fit_params):
+        return self
+    def transform(self, X):
+        return MultiLabelBinarizer(classes=self.class_labels).fit_transform(X)
+~~~
+
+And we need to change our pipeline to pass in these labels
+
+~~~ python
+from sklearn.pipeline import Pipeline
+import numpy as np
+
+numerical_attributes = ['X', 'Y', 'FFMC', 'DMC', 'DC', 'ISI', 'temp', 'RH', 'wind', 'rain']
+categorical_attributes = ['month', 'day']
+categorical_classes = np.concatenate((fires['month'].unique(), fires['day'].unique()), axis=0)
+
+numerical_pipeline = Pipeline([
+    ('selector', AttributeSelector(numerical_attributes)),
+    ('standardize', StandardScaler()),
+])
+categorical_pipeline = Pipeline([
+    ('selector', AttributeSelector(categorical_attributes)),
+    ('encode', CustomBinarizer(categorical_classes)),
+])
+~~~
+
+Now if we run through everything again, our predictor should work!
+
+~~~ python
+some_data = fires.iloc[:5]
+some_labels = fires_labels.iloc[:5]
+some_data_prepared = full_pipeline.fit_transform(some_data)
+some_predictions = lr_model.predict(some_data_prepared)
+
+print(some_predictions)
+print(list(some_labels))
+~~~
+
+~~~
+[ 18.95308067  17.52143095   1.8387682   19.12084738   6.85086008]
+[3.3300000000000001, 3.0699999999999998, 3.0899999999999999, 14.68, 6.3799999999999999]
+~~~
+
+Well it looks like we're wayyy off on a couple predictions, and close enough to others. Maybe these tests just didn't match up well with our model. Let's see how we perform on our whole training set. Remember how to measure our performance?
+
+$$
+RMSE(X, h) = {\sqrt {\frac{1} {N}{\sum\limits_{i = 1}^N {(h(x_{i}) - y_{i} } })^{2} } }
+$$
+
+Luckily we don't have to implement that ourselves as, you guessed it, sklearn provides a method for us!
+
+~~~ python
+from sklearn.metrics import mean_squared_error
+
+fires_predictions = lr_model.predict(fires_prepared)
+lr_mse = mean_squared_error(fires_labels, fires_predictions)
+lr_rmse = np.sqrt(lr_mse)
+~~~
+
+Giving us an rmse value of
+
+~~~
+44.45327410460618
+~~~
+
+This is not exactly great. Our mean area size is ~12 and our median is ~0.5 which means an error of 44 is actually pretty awful. It seems like our model is likely underfitting our data, or our outliers are massively skewing our predictions. Our largest fire is a size of 1000+ and our median is 0.5, so it's likely a matter of our model not being powerful enough. Before messing with any data, let's try a more powerful model and see how it performs.
+
+~~~ python
+from sklearn.tree import DecisionTreeRegressor
+
+dtr_model = DecisionTreeRegressor()
+dtr_model.fit(fires_prepared, fires_labels)
+~~~
+
+~~~ python
+fires_predictions = dtr_model.predict(fires_prepared)
+dtr_mse = mean_squared_error(fires_labels, fires_predictions)
+dtr_rmse = np.sqrt(dtr_mse)
+print(dtr_rmse)
+~~~
+
+~~~
+0.624616298684
+~~~
+
+Nice! That's a super good improvement on our last model! Is it too good to be true though? It is possible that our model is super good, but it's also possible that we overfit the data with a model that was too powerful. It's important that we don't touch our test set until we have a model that we're confident about. So let's really make sure by implementing what's called cross-validation. This will randomly split the training set into k distinct folds and then train and evaluate the model k times, picking a different fold for evalution each time and training on the other folds.
+
+The cross_val_score function expects a utility scoring function (greater is better) rather than a cose function(lower is better) which is why we compute -scores before calculating the square root.
+
+~~~ python
+from sklearn.model_selection import cross_val_score
+
+dtr_scores = cross_val_score(dtr_model, fires_prepared, fires_labels,
+                         scoring='neg_mean_squared_error', cv=10)
+
+dtr_rmse_scores = np.sqrt(-dtr_scores)
+~~~
+
+Now let's compare that to our linear regression model.
+
+~~~
+lr_scores = cross_val_score(lr_model, fires_prepared, fires_labels,
+                         scoring='neg_mean_squared_error', cv=10)
+
+lr_rmse_scores = np.sqrt(-lr_scores)
+~~~
+
+~~~ python
+def display_scores(scores):
+    print('Scores: ', scores)
+    print('Mean: ', scores.mean())
+    print('Standard Deviation: ', scores.std())
+
+display_scores(dtr_rmse_scores)
+display_scores(lr_rmse_scores)
+~~~
+
+~~~
+Scores:  [  24.39467999  128.36441232  165.01284395   28.5815252    29.06473364
+   39.19956723   56.94767898  122.04124899   52.12549067   54.67190267]
+Mean:  70.0404083643
+Standard Deviation:  47.2087175244
+Scores:  [  16.79396157   54.45474309   20.60609778   16.93858408   41.23049924
+   21.97246638   20.03594328  119.15641167   16.23465441   33.28695881]
+Mean:  36.0710320321
+Standard Deviation:  30.1690371252
+~~~
+
+Turns out our linear regression model actually turns out to perform better than our dtr model. This shows how bad overfitting can be. Let's try a new kind of model. The *RandomForestRegressor* is an ensemble model that works by training many decision trees on random subsets of features and then averaging out their predictions. Ensemble models use many different models under the hood, and this can often be a great way to improve the performance of more basic models.
+
+~~~ python
+from sklearn.ensemble import RandomForestRegressor
+
+rfr_model = RandomForestRegressor()
+rfr_model.fit(fires_prepared, fires_labels)
+rfr_scores = cross_val_score(rfr_model, fires_prepared, fires_labels,
+                         scoring='neg_mean_squared_error', cv=10)
+rfr_rmse_scores = np.sqrt(-rfr_scores)
+
+display_scores(rfr_rmse_scores)
+~~~
+
+~~~ 
+Scores:  [  26.38377134   60.17483748   59.61891812   46.87677913   46.37478847
+   27.59431815   45.90317448  119.49312881   13.21520909   34.76091816]
+Mean:  48.0395843231
+Standard Deviation:  27.6978076714
+~~~
+
+Better than our decision tree regressor by a lot, but still slightly worse than our linear regressor. Since it's so easy to test new models, let's go one sklearn's documentation and try a few interesting ones.
+
+Let's try a Stochaistic Gradient Descent Regressor.
+
+~~~ python
+from sklearn.linear_model import SGDRegressor
+
+sgd_model = SGDRegressor()
+sgd_model.fit(fires_prepared, fires_labels)
+sgd_scores = cross_val_score(sgd_model, fires_prepared, fires_labels,
+                         scoring='neg_mean_squared_error', cv=10)
+sgd_rmse_scores = np.sqrt(-sgd_scores)
+
+display_scores(sgd_rmse_scores)
+~~~
+
+~~~
+Scores:  [  16.37300926   54.20390424   17.96969978   16.18189113   34.0213234
+   20.67649815   18.62459497  118.63221633   12.77189375   31.82389492]
+Mean:  34.1278925942
+Standard Deviation:  30.5370262423
+~~~
+
+Earlier we mentioned that our large outlier fires may be influencing our model a lot, well lets put that to the test with a robust regression model. This model is supposed to be resistant to the effects of outliers.
+
+~~~ python
+from sklearn.linear_model import RANSACRegressor
+
+ransac = RANSACRegressor()
+ransac.fit(fires_prepared, fires_labels)
+ransac_scores = cross_val_score(ransac, fires_prepared, fires_labels,
+                         scoring='neg_mean_squared_error', cv=10)
+ransac_rmse_scores = np.sqrt(-ransac_scores)
+
+display_scores(ransac_rmse_scores)
+~~~
+
+~~~ python
+Scores:  [  15.59138606   58.81144686   17.04590929   22.32271924   34.87243275
+   20.80153671   19.63157251  121.31191327   15.22593822   33.79914471]
+Mean:  35.9413999623
+Standard Deviation:  31.1414240527
+~~~
+
+And how about a support vector machine for fun.
+
+~~~ python
+from sklearn.svm import SVR
+
+svr = SVR()
+svr.fit(fires_prepared, fires_labels)
+svr_scores = cross_val_score(svr, fires_prepared, fires_labels,
+                         scoring='neg_mean_squared_error', cv=10)
+svr_rmse_scores = np.sqrt(-svr_scores)
+
+display_scores(svr_rmse_scores)
+~~~
+
+~~~ python
+Scores:  [  15.12044194   56.71135435   16.53762708   15.08892542   35.12577314
+   21.1381395    17.19687031  121.26627455   10.14486373   33.96892995]
+Mean:  34.2299199964
+Standard Deviation:  31.8869707877
+~~~
+
+Feel free to experiment with any other interesting looking models! It's also a good idea to save these trained models. With our small datasets, it's trivial to train them, but in the case of large datasets, it might not be feasible to retrain every time we want to open up our notebook. It's easy to save and load a model using sklearn's joblib or python's pickle module.
+
+~~~ python
+from sklearn.externals import joblib
+
+joblib.dump(lr_model, 'lr_model.pkl')
+lr_model_loaded = joblib.load('lr_model.pkl')
+~~~
+
+We now have a list of a few promising models. Our estimates are still a little off, so in our next post we are going to fine tune some of our better performing models.
+
+[Code Repository](https://github.com/new-baseline/wildfire) \\
+[Part 1: The Big Picture](/wildfire-part-1-the-big-picture.html) \\
+[Part 2: Getting The Data](/wildfire-part-2-getting-the-data.html) \\
+[Part 3: Exploring The Data](/wildfire-part-3-exploring-the-data.html) \\
+[Part 4: Preparing The Data](/wildfire-part-4-preparing-the-data.html) \\
+[Part 5: Building Our Models](/wildfire-part-5-building-our-models.html) \\
+[Part 6: Fine Tuning Our Models](/wildfire-part-6-fine-tuning-our-models.html) \\
+[Part 7: Launching Our System](/wildfire-part-7-launching-our-system.html)

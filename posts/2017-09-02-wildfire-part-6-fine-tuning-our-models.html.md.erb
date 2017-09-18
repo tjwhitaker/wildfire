@@ -1,0 +1,285 @@
+---
+title: Wildfire Part 6 - Fine Tuning Our Models
+tags: Regression, Tuning, Tutorial
+---
+
+Now we have a short list of models, but the performance leaves a little something to be desired. For this phase of the project, we're going to try to eek out as much performance as we can, without falling into the overfitting trap. So how can we do this?
+
+Well, all of the models we've been using have what are called hyperparameters. These are optional parameters we pass in that affect how our model runs. For example, here's the sklearn doc page for linear regression <http://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LinearRegression.html#sklearn.linear_model.LinearRegression>.
+
+READMORE
+
+Everything in the *parameters* section is a hyperparameter.
+
+So we can tune all of our models by playing with these parameters. It looks like we'll have a lot of tedious work ahead of us though if we were to play around with all of the possible parameters on all of our models, so let's try and automate that process.
+
+Grid Search
+-----------
+
+Sklearn provides a grid search functionality. By telling it what parameters we want to test, and what values we want to test it with, it will evaluate all of the possible combinations and evaluate them with cross validation.
+
+~~~ python
+from sklearn.model_selection import GridSearchCV
+
+grid_parameters = [
+  {'n_estimators': [3, 10, 30], 'max_features': [2, 4, 6, 8]},
+  {'bootstrap': [False], 'n_estimators': [3, 10], 'max_features': [2, 3, 4]},
+]
+grid_rfr_model = RandomForestRegressor()
+grid_search = GridSearchCV(grid_rfr_model, grid_parameters, cv=5,
+                           scoring='neg_mean_squared_error')
+grid_search.fit(fires_prepared, fires_labels)
+~~~
+
+~~~ python
+print('Best: ',  np.sqrt(-grid_search.best_score_), grid_search.best_params_)
+~~~
+
+~~~ python
+Best:  48.7669354338 {'max_features': 2, 'n_estimators': 30}
+~~~
+
+Randomized Search
+-----------------
+When our hyperparameter search space is large, it can often be easier to use a randomized search cv instead. Instead of telling it which combinations we want it to try, it will select random combinations itself for a set number of iterations.
+
+~~~ python
+from sklearn.model_selection import RandomizedSearchCV
+
+random_params = {
+    'loss': ['squared_loss', 'huber', 'epsilon_insensitive'],
+    'alpha': np.random.uniform(0, 0.001, 5),
+    'epsilon': np.random.uniform(0, 0.1, 5),
+    'l1_ratio': np.random.uniform(0, 0.1, 5),
+    'learning_rate': ['constant', 'optimal', 'invscaling'],
+}
+random_sgd_model = SGDRegressor()
+random_sgd_search = RandomizedSearchCV(random_sgd_model, n_iter=100, cv=5, 
+                                   param_distributions=random_params,
+                                   scoring='neg_mean_squared_error')
+random_sgd_search.fit(fires_prepared, fires_labels)
+~~~
+
+~~~ python
+print('Best: ', np.sqrt(-random_sgd_search.best_score_), random_sgd_search.best_params_)
+~~~
+
+~~~ python
+Best:  45.6363126748 {'loss': 'squared_loss', 
+                      'learning_rate': 'invscaling', 
+                      'l1_ratio': 0.032138698653471819, 
+                      'epsilon': 0.011352577621979122, 
+                      'alpha': 0.0008556478953453511}
+~~~
+
+~~~ python
+random_params = {
+    'C': np.random.uniform(0.5, 1.5, 5),
+    'epsilon': np.random.uniform(0, 0.2, 5),
+    'degree': [2, 3, 4, 5, 6],
+}
+random_svr_model = SVR()
+random_svr_search = RandomizedSearchCV(random_svr_model, n_iter=50, cv=5, 
+                                   param_distributions=random_params,
+                                   scoring='neg_mean_squared_error')
+                                   random_svr_search.fit(fires_prepared, fires_labels)
+~~~
+
+~~~ python
+print('Best: ', np.sqrt(-random_svr_search.best_score_), random_svr_search.best_params_)
+~~~
+
+~~~ python
+Best:  46.7073159017 {'epsilon': 0.074048695626884764, 'degree': 4, 'C': 1.3866297353335355}
+~~~
+
+Well unfortunately, it seems like playing with our hyperparameters on our best performing models didn't gain us much. Turns out those defaults happen to be pretty good for our models. What else can we do to improve our performance?
+
+Analyzing Our Models
+--------------------
+
+We played around with some hyperparameters, but our best performing models are our default SGDRegressor, RANSACRegressor and SVR. A good practice is to look under the hood of these models and see which features they consider important and which they don't.
+
+~~~ python
+feature_names = np.concatenate((numerical_attributes, categorical_classes), axis=0)
+sgd_importances = zip(sgd_model.coef_, feature_names)
+
+for feature in sorted(sgd_importances, key=lambda t: t[0]):
+    print(feature)
+~~~
+
+~~~ python
+(-2.6906692543961142, 'RH')
+(-1.5305473478669251, 'DC')
+(-0.75127146140586287, 'rain')
+(-0.67587065213457198, 'fri')
+(-0.63880819810162126, 'ISI')
+(-0.22348681496200962, 'FFMC')
+(-0.19384604571971803, 'mar')
+(-0.12856611356687125, 'jun')
+(-0.11948267533960183, 'apr')
+(-0.046850887011252791, 'nov')
+(-0.0055947297967217525, 'sun')
+(0.12218608840451492, 'jan')
+(0.24107436090888093, 'oct')
+(0.42024462984341743, 'may')
+(0.56422767164901444, 'dec')
+(0.747336730720912, 'tue')
+(0.89830736333039962, 'wed')
+(0.95969718728223052, 'Y')
+(1.0394700932600032, 'feb')
+(1.3876422473106313, 'mon')
+(1.5057737340712365, 'jul')
+(1.7229152579342484, 'wind')
+(2.6186705218541522, 'sat')
+(2.6746520331698047, 'aug')
+(2.708191144806781, 'sep')
+(3.3307659147065207, 'temp')
+(3.8165825531914028, 'thu')
+(4.8859128774931158, 'X')
+(5.9477404262675373, 'DMC')
+~~~
+
+~~~ python
+ransac_importances = zip(ransac.estimator_.coef_, feature_names)
+
+for feature in sorted(ransac_importances, key=lambda t: t[0]):
+  print(feature)
+~~~
+
+~~~ python
+(-16.285826129495451, 'mar')
+(-12.294116973706549, 'apr')
+(-9.4393428116642575, 'jul')
+(-9.4393428116642575, 'wed')
+(-7.4018772435864024, 'tue')
+(-4.9136317480644136, 'DC')
+(-3.3236677865162076, 'aug')
+(-3.2228564971885874, 'nov')
+(-1.999379108013986, 'jun')
+(-1.362486683207087, 'Y')
+(-0.97147057627941402, 'ISI')
+(-0.76605238892001548, 'DMC')
+(-0.65832546435584516, 'X')
+(-0.31669922912757831, 'FFMC')
+(-8.8817841970012523e-15, 'jan')
+(0.0, 'may')
+(7.1054273576010019e-15, 'dec')
+(0.53567108482620318, 'rain')
+(0.70695223479816849, 'sun')
+(2.3614360264955532, 'thu')
+(2.8894209571394138, 'oct')
+(2.9708536736010647, 'sep')
+(3.898296948101363, 'mon')
+(3.9104237792045717, 'temp')
+(3.9548299218487166, 'wind')
+(4.5227635179381664, 'sat')
+(4.5692794977345565, 'RH')
+(5.3517713279174295, 'fri')
+(40.704914675844563, 'feb')
+~~~
+
+~~~ python
+svr_importances = zip(svr.coef_[0], feature_names)
+
+for feature in sorted(svr_importances, key=lambda t: t[0]):
+    print(feature)
+~~~
+
+~~~ python
+(-1.4364201562359198, 'aug')
+(-1.254557757145335, 'mar')
+(-1.0040381002609982, 'apr')
+(-1.0, 'oct')
+(-1.0, 'jun')
+(-1.0, 'nov')
+(-0.54034879070185382, 'jul')
+(-0.34652576537500401, 'feb')
+(-0.33089551730728228, 'sep')
+(-0.258221297627101, 'fri')
+(-0.25586286401565572, 'ISI')
+(-0.25025202298521765, 'sun')
+(-0.12724406388495046, 'thu')
+(-0.10764925818224519, 'DC')
+(-0.037543726912514508, 'sat')
+(0.038329477869001261, 'RH')
+(0.044780536541357829, 'temp')
+(0.07092282272062686, 'Y')
+(0.13461479117618635, 'X')
+(0.16524477713730024, 'mon')
+(0.17634120710633239, 'FFMC')
+(0.2473066810469372, 'wind')
+(0.24947747621676086, 'wed')
+(0.25853885805572163, 'tue')
+(0.46356805332859718, 'rain')
+(0.53696537681544609, 'DMC')
+(0.9127860870263943, 'jan')
+(1.0, 'may')
+(6.0, 'dec')
+~~~
+
+These features are kind of all across the board. Some models prefer different months or days of the week. Honestly the months and days seem like they could be the biggest source of noise or confusion for our models. Does it really matter the month or day if we're taking into account all of these weather values for those times anyways? So let's go ahead and train our models without our categorical values.
+
+~~~ python
+num_fires_prepared = numerical_pipeline.fit_transform(fires)
+
+num_sgd_model = SGDRegressor()
+num_sgd_model.fit(num_fires_prepared, fires_labels)
+num_sgd_scores = cross_val_score(num_sgd_model, num_fires_prepared, fires_labels,
+                         scoring='neg_mean_squared_error', cv=10)
+num_sgd_rmse_scores = np.sqrt(-num_sgd_scores)
+
+display_scores(num_sgd_rmse_scores)
+~~~
+
+~~~ python
+Scores:  [  15.42580152   53.94732367   18.41348839   15.93552845   33.46887469
+   20.33474228   17.91676434  118.44918175   12.8320843    31.24982578]
+Mean:  33.7973615158
+Standard Deviation:  30.5691849221
+~~~
+
+~~~ python
+num_svr_model = SVR(kernel='linear')
+num_svr_model.fit(num_fires_prepared, fires_labels)
+num_svr_scores = cross_val_score(num_svr_model, num_fires_prepared, fires_labels,
+                                 scoring='neg_mean_squared_error', cv=10)
+num_svr_rmse_scores = np.sqrt(-num_svr_scores)
+
+display_scores(num_svr_rmse_scores)
+~~~
+
+~~~ python
+Scores:  [  15.11872085   56.69568373   16.56367664   15.18100974   35.30678089
+   21.07577779   17.24739507  121.07724146   10.19703672   33.77128572]
+Mean:  34.2234608608
+Standard Deviation:  31.8241252833
+~~~
+
+~~~ python
+num_ransac_model = RANSACRegressor()
+num_ransac_model.fit(num_fires_prepared, fires_labels)
+num_ransac_scores = cross_val_score(num_ransac_model, num_fires_prepared, fires_labels,
+                                    scoring='neg_mean_squared_error', cv=10)
+num_ransac_rmse_scores = np.sqrt(-num_ransac_scores)
+
+display_scores(num_ransac_rmse_scores)
+~~~
+
+~~~ python
+Scores:  [  15.24200095   57.14914476   17.08305898   15.2716898    35.23376508
+   21.12573195   17.45120731  120.95394063   12.11124553   33.99964219]
+Mean:  34.5621427177
+Standard Deviation:  31.6271319298
+~~~
+
+Well, that didn't work as expected either haha. Well this is a good start to get you experimenting with tuning your models! We experimented with hyperparameters, we tried new models and we tried eliminating some features. In the end, we found that our original model setups tended to be better (except for decision trees and random forest regressors). In the goal of wanting to push out the tutorial in a timely manner, we're going to go ahead and call it a day! I do encourage you to experiment as much as you reasonably can in this step before going to the test set. In our next post, we'll go ahead and test our model and try and take a look at what we've learned about predicting forest fires.
+
+[Code Repository](https://github.com/new-baseline/wildfire) \\
+[Part 1: The Big Picture](/wildfire-part-1-the-big-picture.html) \\
+[Part 2: Getting The Data](/wildfire-part-2-getting-the-data.html) \\
+[Part 3: Exploring The Data](/wildfire-part-3-exploring-the-data.html) \\
+[Part 4: Preparing The Data](/wildfire-part-4-preparing-the-data.html) \\
+[Part 5: Building Our Models](/wildfire-part-5-building-our-models.html) \\
+[Part 6: Fine Tuning Our Models](/wildfire-part-6-fine-tuning-our-models.html) \\
+[Part 7: Launching Our System](/wildfire-part-7-launching-our-system.html)

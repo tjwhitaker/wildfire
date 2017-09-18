@@ -1,0 +1,439 @@
+---
+title: Wildfire Part 7 - Launching Our System
+tags: Launch, Regression, Tutorial
+---
+
+Alright! This brings us to the last post in our wildfire series. So far we've we've explored, cleaned and prepared data. We experimented with a bunch of different models. We've attempted to tune those models. Today we're going to choose a model and evaluate it on our test set. 
+
+For our top performing models, we had kind of a tossup between our Stochaistic Gradient Descent Regressor, Support Vector Regressor and RANSAC Regressor. Out of the 3, the SGDRegressor barely squeezed by the other 2, so we'll go ahead and choose that for our final model. The difference between the numerical model (throwing out month and day) vs the full model seemed to be a mean difference of 1 in favor of the numerical model. So let's go ahead a save that model into our repo. And while we're at it, save a handful of our other models and our pipeline.
+
+First let's create a folder called models/ to oraganize our repo a bit.
+
+~~~ python
+from sklearn.externals import joblib
+
+joblib.dump(sgd_model, 'models/sgd_model.pkl')
+joblib.dump(svr, 'models/svr_model.pkl')
+joblib.dump(ransac, 'models/ransac_model.pkl')
+joblib.dump(rfr_model, 'models/rfr_model.pkl')
+joblib.dump(lr_model, 'models/lr_model.pkl')
+joblib.dump(full_pipeline, 'models/pipeline.pkl')
+~~~
+
+Now we'll load the model from our pickle file and evaluate it on our test set:
+
+~~~ python
+final_model = joblib.load('models/sgd_model.pkl')
+
+X_test = test_set.drop('area', axis=1)
+y_test = test_set['area'].copy()
+
+X_test_prepared = full_pipeline.transform(X_test)
+
+final_predictions = final_model.predict(X_test_prepared)
+
+final_mse = mean_squared_error(y_test, final_predictions)
+final_rmse = np.sqrt(final_mse)
+~~~
+
+Which evaluates to
+
+~~~
+108.37856102
+~~~
+
+This is like way worse than our training performance. It's common to see a small drop in performance, but this makes me think our model is overfit to our training data.
+
+It's also totally possible that fire data is totally noisy and it's hard to make a good prediction. This would make a lot of sense too as thing like human intervention could play a big part in how much a fire spreads, and we don't have any kind of data about that to train on. And if we look at our data, we see that the majority of our data points actually have an area burned value of 0. So it seems like we need a lot more data to make better predictions.
+
+While we didn't get quite the result we were hoping for, we still learned a lot along the way. Now that we have our final model, let's build an api so our team can use it to make predictions for future fires! For this, we're going to use flask. Let's get started by setting up a quick hello world flask application.
+
+Let's start by creating a new folder in our wildfire repo called api/. Then create a file named api.py and write this.
+
+~~~ python
+from flask import Flask
+
+app = Flask(__name__)
+
+@app.route('/')
+def index():
+    return 'Hello world!'
+
+if __name__ == '__main__':
+    app.run(debug=True)
+~~~
+
+We then navigate to our directory and run api.py from the command line.
+
+~~~
+$ python3 api.py
+ * Running on http://127.0.0.1:5000/ (Press CTRL+C to quit)
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 236-254-784
+127.0.0.1 - - [08/Sep/2017 16:45:46] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [08/Sep/2017 16:45:47] "GET /favicon.ico HTTP/1.1" 404 -
+~~~
+
+Now we can navigate to 127.0.0.1:5000 in our browser and see the text 'Hello world!'. Let's go ahead and use a template so we can write html. Create a new folder named `templates` and create a file inside of that named `index.html`. You can use this example template or write your own.
+
+~~~ html
+<!doctype html>
+<head lang="en">
+  <meta charset="utf-8">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="author" content="New Baseline">
+  <meta name="description" content="Predicting the burn area of forest fires in Montesinsho with machine learning.">
+  <meta name="keywords" content="forest,fires,ml,ai,regression,api,predictions">
+
+  <!-- Use the title from a page's frontmatter if it has one -->
+  <title>Forest Fires | Predicting Burns</title>
+</head>
+<body>
+  <main>
+    <h1>Index</h1>
+  </main>
+</body>
+~~~
+
+Change api.py to include the render_template function and render that template when we hit our homepage.
+
+~~~ python
+from flask import Flask, render_template
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+~~~
+
+Remember those models we saved from before? Let's go ahead and copy them and bring them into our api into their own folder.
+
+Here's the relevant part of our directory structure:
+
+~~~
+wildfire/
+├── api/
+|   ├── api.py
+|   └── models/
+|       ├── lr_model.pkl 
+|       ├── ransac_model.pkl 
+|       ├── rfr_model.pkl 
+|       ├── sgd_model.pkl 
+|       └── svr_model.pkl 
+├── data/
+├── models/
+├── notebooks/
+└── LICENSE
+~~~
+
+Let's plan out how we want our api to function. I  think we have 2 general approaches that might work. We either have a bunch of endpoints like `/predict/lr`, `/predict/ransac`, `/predict/rfr` etc. Our other option is to create one endpoint `/predict` and make it optional to pass in the name of a model to use. I think both designs are valid, and it's more of a question of how our users will interact with it. 
+
+I think the second approach may be slightly cleaner and easier to maintain, so let's go with that. First thing's first, let's stub out our endpoint.
+
+~~~ python
+# Expecting json to be an object with these fields:
+#
+# {
+#   "algo": "lr", "ransac", "rfr", "sgd", or "svr"
+#   "observations": {
+#     "X": Int from 0-9,
+#     "Y": Int from 0-9,
+#     "month": "jan", "feb", "mar", "apr", "may", "jun", 
+#              "jul", "aug", "sep", "oct", "nov", or "dec"
+#     "day": "mon", "tue", "wed", "thu", "fri", "sat", or "sun"
+#     "FFMC": Float,
+#     "DMC": Float,
+#     "DC": Float,
+#     "ISI": Float,
+#     "temp": Float,
+#     "RH": Float,
+#     "wind": Float,
+#     "rain": Float
+#   }
+# }
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    data = request.get_json()
+    model = data['algo']
+    observations = data['observations']
+    
+    print(model, observations)
+    return
+~~~
+
+I created a test data file called apitest.json
+
+~~~ json
+{
+  "algo": "lr",
+  "observations": {
+    "X": 7,
+    "Y": 5,
+    "month": "mar",
+    "day": "fri",
+    "FFMC": 86.2,
+    "DMC": 26.2,
+    "DC": 94.3,
+    "ISI": 5.1,
+    "temp": 8.2,
+    "RH": 51.6,
+    "wind": 7,
+    "rain": 0
+  }
+}
+~~~
+
+And if we're in the same directory as our test file, we can post to our predict function like this:
+
+~~~ bash
+curl -d "@apitest.json" -H "Content-Type: application/json" -X POST http://localhost:5000/predict
+~~~
+
+It'll return a bunch of errors, but in the console you should see something like this:
+
+~~~ python
+lr [7, 5, 'mar', 'fri', 86.2, 26.2, 94.3, 5.1, 8.2, 51.6, 7, 0]
+~~~
+
+Okay, excellent! Now let's implement our models and pipeline. Remember that our pipeline is set up to take a pandas dataframe, so we'll need to convert our dictionary to a dataframe. 
+
+I also decided to throw our pickled pipeline into its own class and file. There was some import difficulties with the classes the pipeline was using, so it seemed better to abstract it into its own file. Here's pipeline.py:
+
+~~~ python
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.externals import joblib
+from sklearn.preprocessing import MultiLabelBinarizer
+
+class AttributeSelector(BaseEstimator, TransformerMixin):
+    def __init__(self, attribute_names):
+        self.attribute_names = attribute_names
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        return X[self.attribute_names].values
+
+
+class CustomBinarizer(BaseEstimator, TransformerMixin):
+    def __init__(self, class_labels):
+        self.class_labels = class_labels
+    def fit(self, X, y=None,**fit_params):
+        return self
+    def transform(self, X):
+        return MultiLabelBinarizer(classes=self.class_labels).fit_transform(X)
+
+class FullPipeline():
+    def __init__(self):
+        self.pipeline = joblib.load('models/pipeline.pkl')
+
+    def prepare_data(self, data):
+        return self.pipeline.transform(data)
+~~~
+
+And here's api.py:
+
+~~~ python
+from pipeline import AttributeSelector, CustomBinarizer, FullPipeline
+import pandas as pd
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    data = request.get_json()
+    algo = data['algo']
+    observations = data['observations']
+    df = pd.DataFrame([observations], columns=observations.keys())
+    
+    pipeline = FullPipeline()
+    data_prepared = pipeline.prepare_data(df)    
+
+    if algo == 'lr':
+        model = joblib.load('models/lr_model.pkl')
+    elif algo == 'ransac':
+        model = joblib.load('models/ransac_model.pkl')
+    elif algo == 'rfr':
+        model = joblib.load('models/rfr_model.pkl')
+    elif algo == 'sgd':
+        model = joblib.load('models/sgd_model.pkl')
+    else:
+        model = joblib.load('models/svr_model.pkl')
+
+    prediction = {'area': model.predict(data_prepared)[0]}
+    
+    return jsonify(prediction)
+~~~
+
+Now if we try posting our test json to our endpoint...
+
+~~~ python
+curl -d "@apitest.json" -H "Content-Type: application/json" -X POST http://localhost:5000/predict
+~~~
+
+~~~ python
+{
+  "area": -0.6741600499468312
+}
+~~~
+
+And we get a prediction! To try different models, all we have to do is change that field in our test json file. Now lets make a quick form on our index page so that our users can use a gui instead of having to use curl (or some equivalent.
+
+~~~ html
+<form action='/predict' method='post'>
+  <fieldset>
+    <label for="x">X</label>
+    <input type="text" name="x">
+  </fieldset>
+
+  <fieldset>
+    <label for="y">Y</label>
+    <input type="text" name="y">
+  </fieldset>
+
+  <fieldset>
+    <label for="ffmc">FFMC</label>
+    <input type="text" name="ffmc">
+  </fieldset>
+
+  <fieldset>
+    <label for="DMC">DMC</label>
+    <input type="text" name="dmc">
+  </fieldset>
+
+  <fieldset>
+    <label for="dc">DC</label>
+    <input type="text" name="dc">
+  </fieldset>
+
+  <fieldset>
+    <label for="isi">ISI</label>
+    <input type="text" name="isi">
+  </fieldset>
+
+  <fieldset>
+    <label for="temp">Temperature</label>
+    <input type="text" name="temp">
+  </fieldset>
+
+  <fieldset>
+    <label for="rh">Relative Humidity</label>
+    <input type="text" name="rh">
+  </fieldset>
+
+  <fieldset>
+    <label for="wind">Wind</label>
+    <input type="text" name="wind">
+  </fieldset>
+
+  <fieldset>
+    <label for="rain">Rain</label>
+    <input type="text" name="rain">
+  </fieldset>
+
+  <fieldset>
+    <label for="month">Month</label>
+    <select name="month">
+      <option value="jan">January</option>
+      <option value="feb">February</option>
+      <option value="mar">March</option>
+      <option value="apr">April</option>
+      <option value="may">May</option>
+      <option value="jun">June</option>
+      <option value="jul">July</option>
+      <option value="aug">August</option>
+      <option value="sep">September</option>
+      <option value="oct">October</option>
+      <option value="nov">November</option>
+      <option value="dec">December</option>
+    </select>
+  </fieldset>
+
+  <fieldset>
+    <label for="day">Day</label>
+    <select name="day">
+      <option value="mon">Monday</option>
+      <option value="tue">Tuesday</option>
+      <option value="wed">Wednesday</option>
+      <option value="thu">Thursday</option>
+      <option value="fri">Friday</option>
+      <option value="sat">Saturday</option>
+      <option value="sun">Sunday</option>
+    </select>
+  </fieldset>
+
+  <fieldset>
+    <label for="algo">Algorithm</label>
+    <select name="algo">
+      <option value="lr">Linear Regression</option>
+      <option value="ransac">RANSAC Regression</option>
+      <option value="rfr">Random Forest Regression</option>
+      <option value="sgd">Stochaistic Gradient Descent</option>
+      <option value="svr">Support Vector Regression</option>
+    </select>
+  </fieldset>
+
+  <fieldset>
+    <button type="submit">Predict</button>
+  </fieldset>
+</form>
+~~~
+
+And we need to change our predict function in api.py to differentiate between a json vs form request.
+
+~~~ python
+@app.route('/predict', methods=['POST'])
+def predict():
+    if request.is_json:
+        data = request.get_json()
+        algo = data['algo']
+        observations = data['observations']
+    else:
+        algo = request.form['algo']
+        observations = {
+            "X": request.form['x'],
+            "Y": request.form['y'],
+            "month": request.form['month'], 
+            "day": request.form['day'],
+            "FFMC": request.form['ffmc'],
+            "DMC": request.form['dmc'],
+            "DC": request.form['dc'],
+            "ISI": request.form['isi'],
+            "temp": request.form['temp'],
+            "RH": request.form['rh'],
+            "wind": request.form['wind'],
+            "rain": request.form['rain']
+        }
+    
+    df = pd.DataFrame([observations], columns=observations.keys())    
+    pipeline = FullPipeline()
+    data_prepared = pipeline.prepare_data(df)    
+
+    if algo == 'lr':
+        model = joblib.load('models/lr_model.pkl')
+    elif algo == 'ransac':
+        model = joblib.load('models/ransac_model.pkl')
+    elif algo == 'rfr':
+        model = joblib.load('models/rfr_model.pkl')
+    elif algo == 'sgd':
+        model = joblib.load('models/sgd_model.pkl')
+    else:
+        model = joblib.load('models/svr_model.pkl')
+
+    prediction = {'area': model.predict(data_prepared)[0]}
+    
+    return jsonify(prediction)
+~~~
+
+And now we should be able to fill out the webform and submit it and receive a prediction back. This is a pretty bare bones implementation and one that is not ready to be consumed out in public. If we wanted to move this into production, we would look to validate all of our incoming data, give more info on the fields and models, create a batch function where you could upload multiple observations, add some styles to the form, and add some rate limiting or authentication. There's probably some more great ideas out there that aren't coming to me right now.
+
+This brings us to the conclusion of the wildfire tutorial! Thanks for reading along and learning with me.
+
+[Code Repository](https://github.com/new-baseline/wildfire) \\
+[Part 1: The Big Picture](/wildfire-part-1-the-big-picture.html) \\
+[Part 2: Getting The Data](/wildfire-part-2-getting-the-data.html) \\
+[Part 3: Exploring The Data](/wildfire-part-3-exploring-the-data.html) \\
+[Part 4: Preparing The Data](/wildfire-part-4-preparing-the-data.html) \\
+[Part 5: Building Our Models](/wildfire-part-5-building-our-models.html) \\
+[Part 6: Fine Tuning Our Models](/wildfire-part-6-fine-tuning-our-models.html) \\
+[Part 7: Launching Our System](/wildfire-part-7-launching-our-system.html)
