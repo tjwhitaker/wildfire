@@ -7,6 +7,10 @@ import pandas as pd
 def index():
     return template('templates/index.html')
 
+@route('/static/<filename>')
+def serve(filename):
+    return static_file(filename, root='static/')
+
 @post('/predict')
 def predict():
     if request.json:

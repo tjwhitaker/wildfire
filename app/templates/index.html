@@ -7,131 +7,125 @@
   <meta name="description" content="Predicting the burn area of forest fires in Montesinsho with machine learning.">
   <meta name="keywords" content="forest,fires,ml,ai,regression,api,predictions">
 
-  <title>Forest Fires | Predicting Burns</title>
+  <title>Wildfire | Predicting Burns</title>
 
-  <style>
-    fieldset {
-      border:none;
-      padding:5px;
-      margin:0;
-    }
-    fieldset label, 
-    fieldset input, 
-    fieldset select {
-      display:block;
-    }
-    fieldset input,
-    fieldset select {
-      padding:5px;
-      width:250px;
-    }
-  </style>
+  <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
   <header>
-    <a class="logo" href="/">Wildfire</a>
-    <nav>
-      <a href="https://github.com/new-baseline/wildfire">Code</a>
-      <a href="https://newbaseline.com">Support</a>
-    </nav>
+    <div class="wrapper">
+      <a class="logo" href="/">
+        <img src="/static/logo.png">
+      </a>
+    </div>
   </header>
   <main>
-    <form action='/predict' method='post'>
-      <fieldset>
-        <label for="x">X</label>
-        <input type="text" name="x">
-      </fieldset>
+    <div class="wrapper">
+      <form action="/predict" method="post">
+        <div class="section">
+          <h1>Time & Place</h1>
+          
+          <fieldset>
+            <div class="select">
+              <select name="month">
+                <option value="" selected disabled hidden>Month</option>              
+                <option value="jan">January</option>
+                <option value="feb">February</option>
+                <option value="mar">March</option>
+                <option value="apr">April</option>
+                <option value="may">May</option>
+                <option value="jun">June</option>
+                <option value="jul">July</option>
+                <option value="aug">August</option>
+                <option value="sep">September</option>
+                <option value="oct">October</option>
+                <option value="nov">November</option>
+                <option value="dec">December</option>
+              </select>
+            </div>
+          </fieldset>
 
-      <fieldset>
-        <label for="y">Y</label>
-        <input type="text" name="y">
-      </fieldset>
+          <fieldset>
+            <div class="select">
+              <select name="day">
+                <option value="" selected disabled hidden>Day</option>              
+                <option value="mon">Monday</option>
+                <option value="tue">Tuesday</option>
+                <option value="wed">Wednesday</option>
+                <option value="thu">Thursday</option>
+                <option value="fri">Friday</option>
+                <option value="sat">Saturday</option>
+                <option value="sun">Sunday</option>
+              </select>
+            </div>
+          </fieldset>
 
-      <fieldset>
-        <label for="ffmc">FFMC</label>
-        <input type="text" name="ffmc">
-      </fieldset>
+          <fieldset>
+            <input type="text" name="x" placeholder="X">
+          </fieldset>
 
-      <fieldset>
-        <label for="DMC">DMC</label>
-        <input type="text" name="dmc">
-      </fieldset>
+          <fieldset>
+            <input type="text" name="y" placeholder="Y">
+          </fieldset>
+        </div>
 
-      <fieldset>
-        <label for="dc">DC</label>
-        <input type="text" name="dc">
-      </fieldset>
+        <div class="section">
+          <h1>Fire & Fuel Behavior</h1>
+          <fieldset>
+            <input type="text" name="ffmc" placeholder="FFMC">
+          </fieldset>
 
-      <fieldset>
-        <label for="isi">ISI</label>
-        <input type="text" name="isi">
-      </fieldset>
+          <fieldset>
+            <input type="text" name="dmc" placeholder="DMC">
+          </fieldset>
 
-      <fieldset>
-        <label for="temp">Temperature</label>
-        <input type="text" name="temp">
-      </fieldset>
+          <fieldset>
+            <input type="text" name="dc" placeholder="DC">
+          </fieldset>
 
-      <fieldset>
-        <label for="rh">Relative Humidity</label>
-        <input type="text" name="rh">
-      </fieldset>
+          <fieldset>
+            <input type="text" name="isi" placeholder="ISI">
+          </fieldset>
+        </div>
 
-      <fieldset>
-        <label for="wind">Wind</label>
-        <input type="text" name="wind">
-      </fieldset>
+        <div class="section">
+          <h1>Weather Observations</h1>
+          <fieldset>
+            <input type="text" name="temp" placeholder="Temperature">
+          </fieldset>
 
-      <fieldset>
-        <label for="rain">Rain</label>
-        <input type="text" name="rain">
-      </fieldset>
+          <fieldset>
+            <input type="text" name="rh" placeholder="Relative Humidity">
+          </fieldset>
 
-      <fieldset>
-        <label for="month">Month</label>
-        <select name="month">
-          <option value="jan">January</option>
-          <option value="feb">February</option>
-          <option value="mar">March</option>
-          <option value="apr">April</option>
-          <option value="may">May</option>
-          <option value="jun">June</option>
-          <option value="jul">July</option>
-          <option value="aug">August</option>
-          <option value="sep">September</option>
-          <option value="oct">October</option>
-          <option value="nov">November</option>
-          <option value="dec">December</option>
-        </select>
-      </fieldset>
+          <fieldset>
+            <input type="text" name="wind" placeholder="Wind">
+          </fieldset>
 
-      <fieldset>
-        <label for="day">Day</label>
-        <select name="day">
-          <option value="mon">Monday</option>
-          <option value="tue">Tuesday</option>
-          <option value="wed">Wednesday</option>
-          <option value="thu">Thursday</option>
-          <option value="fri">Friday</option>
-          <option value="sat">Saturday</option>
-          <option value="sun">Sunday</option>
-        </select>
-      </fieldset>
+          <fieldset>
+            <input type="text" name="rain" placeholder="Rain">
+          </fieldset>
+        </div>
 
-      <fieldset>
-        <label for="algo">Algorithm</label>
-        <select name="algo">
-          <option value="lr">Linear Regression</option>
-          <option value="ransac">RANSAC Regression</option>
-          <option value="rfr">Random Forest Regression</option>
-          <option value="sgd">Stochaistic Gradient Descent</option>
-          <option value="svr">Support Vector Regression</option>
-        </select>
-      </fieldset>
+        <div class="section">
+          <h1>Algorithm</h1>          
+          <fieldset>
+            <div class="select">            
+              <select name="algo">
+                <option value="lr">Linear Regression</option>
+                <option value="ransac">RANSAC Regression</option>
+                <option value="rfr">Random Forest Regression</option>
+                <option value="sgd">Stochaistic Gradient Descent</option>
+                <option value="svr">Support Vector Regression</option>
+              </select>
+            </div>
+          </fieldset>
 
-      <fieldset>
-        <button type="submit">Predict</button>
-      </fieldset>
-    </form>
+          <fieldset>
+            <button type="submit">Predict</button>
+          </fieldset>
+        </div>
+      </form>
+    </div>
   </main>
 </body>

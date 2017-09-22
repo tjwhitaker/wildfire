@@ -1,0 +1,125 @@
+html, body {
+  font-family:sans-serif;
+  padding:0;
+  margin:0;
+}
+.wrapper {
+  max-width:640px;
+  width:100%;
+  padding:10px;
+  margin:0 auto;
+  box-sizing:border-box;
+}
+
+header {
+  background:url(/static/nebula.jpg) no-repeat bottom;
+  background-size:cover;
+}
+
+.logo {
+  color:white;
+  text-transform:uppercase;
+  font-weight:bold;
+  text-decoration:none;
+  font-size:18px;
+  letter-spacing:1px;
+}
+
+#frame {
+  background:white;
+  width:100%;
+}
+
+h1 {
+  color:rgb(160,160,160);
+  font-size:14px;
+  text-transform:uppercase;
+  margin:0;
+}
+p {
+  margin-top:0;
+}
+
+.button {
+  padding:10px;
+  color:white;
+  background:black;
+  font-size:12px;
+  font-weight:bold;
+  text-decoration:none;
+  text-transform:uppercase;
+  display:inline-block;
+  margin:10px 0;
+}
+
+form {
+  background:rgb(240,240,240);
+  border-radius:5px;
+}
+.section {
+  padding:10px;
+  margin:0 10px;
+}
+.section:not(:last-child) {
+  border-bottom:1px solid rgb(200,200,200);
+}
+fieldset {
+  border:none;
+  margin:0;
+  padding:5px 0;
+}
+.flex-wrapper {
+  display:flex;
+}
+.flex-wrapper div {
+  flex:1;
+}
+fieldset label, 
+fieldset input, 
+fieldset select {
+  display:block;
+}
+fieldset input,
+fieldset select {
+  padding:5px;
+  width:100%;
+  box-sizing:border-box;
+  -webkit-appearance:none;
+  -moz-appearance:none;
+  appearance:none;
+  border:1px solid rgb(200,200,200);
+  padding:5px;
+  color:rgb(140,140,140);
+  border-radius:0px;
+  background:white;
+}
+
+.select {
+  position:relative;
+}
+.select::after {
+  content:"▼";
+  font-size:8px;
+  padding:8px 8px;
+  position:absolute;
+  right:0;
+  top:0;
+  z-index:1;
+  text-align:center;
+  color:rgb(200,200,200);
+  pointer-events:none;    
+}
+
+button {
+  padding:10px;
+  color:white;
+  background:black;
+  border:none;
+  font-size:12px;
+  font-weight:bold;
+  text-decoration:none;
+  text-transform:uppercase;
+  display:inline-block;
+  margin:10px 0;
+  cursor:pointer;
+}
