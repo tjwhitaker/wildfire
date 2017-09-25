@@ -14,7 +14,7 @@ def serve(filename):
 @post('/predict')
 def predict():
     if request.json:
-        data = request.json()
+        data = request.json
         algo = data['algo']
         observations = data['observations']
     else:
