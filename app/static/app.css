@@ -2,6 +2,7 @@ html, body {
   font-family:sans-serif;
   padding:0;
   margin:0;
+  background:rgb(240,240,240);
 }
 .wrapper {
   max-width:640px;
@@ -53,7 +54,7 @@ p {
 }
 
 form {
-  background:rgb(240,240,240);
+  background:white;
   border-radius:5px;
 }
 .section {
