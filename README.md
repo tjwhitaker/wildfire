@@ -8,10 +8,12 @@ app/ contains a web application written with bottle.py.
 
 data/ contains training and testing data for our models.
 
+images/ contains previews.
+
 models/ contains trained ML models.
 
 notebooks/ contains a jupyter notebook file that goes through the process.
 
 posts/ contains blog posts to walk you through this project.
 ```
-
+![Preview](images/preview.png)
